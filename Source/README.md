@@ -33,9 +33,7 @@ Source/
 * YAML
 * JSON
 * XML
-* Google Protobuf
 * aiohttp
-* websockets
 
 ---
 
@@ -81,7 +79,6 @@ The server:
 * accepts TCP sensor connections
 * decodes Protobuf messages
 * stores readings in SQLite
-* exposes the REST API
 
 ---
 
@@ -94,10 +91,12 @@ python -m wss
 Expected output:
 
 ```text
-WebSocket server listening on ws://0.0.0.0:8765/live
+=== WebSocket Live Feed Started ===
+1.WebSocket URL : ws://0.0.0.0:8765/live
+2.Waiting for dashboard clients............!
 ```
 
-The WebSocket server broadcasts live sensor readings to connected dashboard clients.
+
 
 ---
 
@@ -149,7 +148,7 @@ The API performs content negotiation using the `Accept` header.
 
 ---
 
-# REST API Examples
+#  VERIFY REST API 
 
 ---
 
@@ -238,25 +237,14 @@ Set-Cookie: session_id=xxxxx; HttpOnly; Path=/
 
 # Database
 
-The system uses SQLite (`telemetry.db`) for persistent storage.
+The system uses SQLite (`GreenHouse.db`) for persistent storage.
 
 Stored data includes:
-
 * registered sensors
 * historical telemetry readings
 
 ---
 
-# Failure Handling
-
-The system handles:
-
-* malformed Protobuf messages
-* sensor disconnections
-* slow consumers
-* invalid REST requests
-
-without crashing the server.
 
 ---
 
