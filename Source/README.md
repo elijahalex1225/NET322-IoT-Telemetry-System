@@ -1,62 +1,266 @@
 # IoT Telemetry Pipeline — Source
 
-> Scaffold only. All modules contain stubs — fill in implementation as you build.
+A prototype IoT telemetry system built with Python AsyncIO for the NET322 Network Programming & Applications Development assignment.
 
-## Project layout
+The system simulates greenhouse sensors that continuously send telemetry readings to a central server using Protobuf over TCP, while providing a REST API and WebSocket live feed for monitoring and historical data access.
 
-```
+---
+
+# Project Structure
+
+```text
 Source/
-├── proto/                  Protobuf schema (.proto)
-├── config/                 Sample YAML sensor configuration
-├── server/                 Sensor TCP ingest + REST API
-├── wss/                    WebSocket server (live feed at /live)
-└── client/                 Sensor simulator (TCP client)
+├── client/                 Sensor simulator
+├── config/                 YAML configuration files
+├── frontend/               Dashboard UI
+├── proto/                  Protobuf schema
+├── server/                 TCP ingest + REST API
+├── wss/                    WebSocket server
+├── telemetry.db            SQLite database
+├── requirements.txt
+└── README.md
 ```
 
-Each of `server/`, `wss/`, and `client/` is a runnable Python module. They share state through the storage layer — decide how (shared SQLite file, in-process queue, IPC) and document it here.
+---
 
-## Setup
+# Technologies Used
+
+* Python AsyncIO
+* TCP Sockets
+* REST API
+* WebSocket
+* SQLite
+* YAML
+* JSON
+* XML
+* Google Protobuf
+* aiohttp
+* websockets
+
+---
+
+# Setup
+
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
+```
 
-# Compile the Protobuf schema to Python
+Compile protobuf schema:
+
+```bash
 protoc --python_out=. proto/telemetry.proto
 ```
 
-## Running
+---
 
-In three separate terminals, from the `Source/` directory:
+# Running the System
+
+Open multiple terminals inside the `Source/` directory.
+
+---
+
+## 1. Start the Telemetry Server
 
 ```bash
-# 1. The telemetry server (TCP ingest + REST API)
 python -m server
+```
 
-# 2. The WebSocket live-feed server
+Expected output:
+
+```text
+=== IoT Telemetry System Started ===
+REST API : http://127.0.0.1:8080
+TCP Port : 9000
+Waiting for sensor connections..........!
+```
+
+The server:
+
+* accepts TCP sensor connections
+* decodes Protobuf messages
+* stores readings in SQLite
+* exposes the REST API
+
+---
+
+## 2. Start the WebSocket Server
+
+```bash
 python -m wss
+```
 
-# 3. The sensor simulator
+Expected output:
+
+```text
+WebSocket server listening on ws://0.0.0.0:8765/live
+```
+
+The WebSocket server broadcasts live sensor readings to connected dashboard clients.
+
+---
+
+## 3. Start the Sensor Simulator
+
+```bash
 python -m client --config config/sensors.yaml
 ```
 
-## REST API
+Example output:
 
-Endpoints (all support content negotiation via the `Accept` header — JSON, XML, YAML):
+```text
+[temp-1  ] temperature  = 29.44 C
+[humid-1 ] humidity     = 72.81 %
+[soil-1  ] moisture     = 61.22 %
 
-| Method | Path                              | Purpose                          |
-|--------|-----------------------------------|----------------------------------|
-| GET    | `/sensors`                        | List registered sensors          |
-| GET    | `/sensors/{id}/readings`          | Historical readings (`?from=&to=`) |
-| POST   | `/sensors`                        | Register a new sensor            |
-| DELETE | `/sensors/{id}`                   | Remove a sensor                  |
+----------------------------------------
+```
 
-Sessions are tracked via cookies — set on first response, returned by the client on subsequent requests.
+The simulator:
 
-## WebSocket
+* loads sensor settings from YAML
+* generates realistic readings
+* serializes readings using Protobuf
+* sends telemetry over TCP asynchronously
 
-Connect to `ws://<host>:<port>/live`. Send a JSON subscription message after the upgrade to filter on specific sensor IDs. Frames on this channel are JSON.
+---
 
-## Authors
+# REST API
 
-- TODO: Name 1, Student ID
-- TODO: Name 2, Student ID
+Supported formats:
+
+* JSON
+* XML
+* YAML
+
+The API performs content negotiation using the `Accept` header.
+
+---
+
+# REST Endpoints
+
+| Method | Endpoint                 | Description                 |
+| ------ | ------------------------ | --------------------------- |
+| GET    | `/sensors`               | List all registered sensors |
+| GET    | `/sensors/{id}/readings` | Get historical readings     |
+| POST   | `/sensors`               | Register a new sensor       |
+| DELETE | `/sensors/{id}`          | Remove a sensor             |
+
+---
+
+# REST API Examples
+
+---
+
+## JSON Request
+
+```powershell
+iwr http://localhost:8080/sensors `
+-Headers @{Accept="application/json"} `
+-UseBasicParsing
+```
+
+---
+
+## XML Request
+
+```powershell
+iwr http://localhost:8080/sensors `
+-Headers @{Accept="application/xml"} `
+-UseBasicParsing
+```
+
+---
+
+## YAML Request
+
+```powershell
+iwr http://localhost:8080/sensors `
+-Headers @{Accept="application/yaml"} `
+-UseBasicParsing
+```
+
+---
+
+## Register a Sensor
+
+```powershell
+$body = '{"id":"test-1","type":"temperature"}'
+
+iwr `
+-Uri http://localhost:8080/sensors `
+-Method POST `
+-Body $body `
+-ContentType "application/json" `
+-UseBasicParsing
+```
+
+## Get All Sensors
+
+```powershell
+iwr http://localhost:8080/sensors `
+-UseBasicParsing
+```
+
+---
+
+## Get Historical Readings
+
+```powershell
+iwr http://localhost:8080/sensors/temp-1/readings `
+-UseBasicParsing
+```
+---
+
+## Delete a Sensor
+
+```powershell
+iwr `
+-Uri http://localhost:8080/sensors/test-1 `
+-Method DELETE `
+-UseBasicParsing
+```
+
+---
+
+# Cookies
+
+The REST API uses cookies to identify client sessions.
+
+Example response header:
+
+```text
+Set-Cookie: session_id=xxxxx; HttpOnly; Path=/
+```
+
+---
+
+# Database
+
+The system uses SQLite (`telemetry.db`) for persistent storage.
+
+Stored data includes:
+
+* registered sensors
+* historical telemetry readings
+
+---
+
+# Failure Handling
+
+The system handles:
+
+* malformed Protobuf messages
+* sensor disconnections
+* slow consumers
+* invalid REST requests
+
+without crashing the server.
+
+---
+
+# Authors
+
+* Alex Elijah — BSC-COM-NE-19-23
+* Robert Lupiya — BSC-COM-NE-13-23

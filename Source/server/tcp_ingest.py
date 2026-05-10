@@ -1,18 +1,8 @@
-"""Asynchronous TCP listener for sensor connections.
 
-Sensors connect over TCP and stream Protobuf-encoded readings. This module:
-  - Accepts connections concurrently with asyncio.start_server.
-  - Frames and decodes each Protobuf message from the byte stream.
-  - Hands decoded readings to the storage layer (and optionally to a
-    broadcaster so the WebSocket /live feed can push them).
-  - Tolerates disconnects and malformed messages without crashing the server.
-
-Framing convention: 4-byte big-endian length prefix followed by the Protobuf
-payload of that length. Adjust if your design uses a different framing scheme.
-"""
 from __future__ import annotations
-
 import asyncio
+import struct
+from proto import telemetry_pb2
 
 
 async def handle_sensor(
@@ -20,14 +10,91 @@ async def handle_sensor(
     writer: asyncio.StreamWriter,
 ) -> None:
     """Handle one sensor connection until it closes."""
-    # TODO: read length-prefixed Protobuf frames in a loop
-    # TODO: decode each into a Reading message
-    # TODO: persist via storage; publish to the live broadcaster
-    # TODO: handle malformed frames without dropping the connection
-    raise NotImplementedError
+
+    address = writer.get_extra_info("peername")
+
+    print(f"[CONNECTED] Sensor {address}")
+
+    storage = writer.transport._server.storage
+    broadcaster = writer.transport._server.broadcaster
+
+    try:
+        while True:
+
+            try:
+                # Read frame size
+                header = await reader.readexactly(4)
+
+                message_length = struct.unpack("!I", header)[0]
+
+                # Validate frame size
+                if message_length <= 0 or message_length > 10_000:
+                    raise ValueError(
+                        f"Invalid message length: {message_length}"
+                    )
+
+                # Read protobuf payload
+                payload = await reader.readexactly(message_length)
+
+                # Decode protobuf
+                reading = telemetry_pb2.Reading()
+
+                reading.ParseFromString(payload)
+
+                reading_data = {
+                    "sensor_id": reading.sensor_id,
+                    "reading_type": reading.reading_type,
+                    "value": reading.value,
+                    "unit": reading.unit,
+                    "timestamp": reading.timestamp,
+                }
+
+                print(
+                    f"[RECEIVED] "
+                    f"{reading.sensor_id} | "
+                    f"{reading.reading_type} | "
+                    f"{reading.value} {reading.unit}"
+                )
+
+                # Save reading to database
+                if storage is not None:
+                    await storage.add_reading(reading_data)
+
+                # Broadcast to websocket clients
+                if broadcaster is not None:
+                    await broadcaster.broadcast(reading_data)
+
+            except asyncio.IncompleteReadError:
+                print(f"[DISCONNECTED] {address}")
+                break
+
+            except Exception as e:
+                print(f"[MALFORMED MESSAGE] {e}")
+                continue
+
+    finally:
+        writer.close()
+        await writer.wait_closed()
 
 
-async def start_tcp_server(host: str, port: int) -> asyncio.AbstractServer:
-    """Start the TCP ingest server listening on (host, port)."""
-    # TODO: return await asyncio.start_server(handle_sensor, host, port)
-    raise NotImplementedError
+async def start_tcp_server(
+    host: str,
+    port: int,
+    storage,
+    broadcaster,
+) -> asyncio.AbstractServer:
+    """Start TCP ingest server."""
+
+    server = await asyncio.start_server(
+        handle_sensor,
+        host,
+        port,
+    )
+
+    # Attach shared services
+    server.storage = storage
+    server.broadcaster = broadcaster
+
+    print(f"TCP server listening on {host}:{port}")
+
+    return server

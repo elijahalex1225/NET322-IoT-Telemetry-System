@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>IoT Dashboard</title>
+
+    <style>
+        body {
+            font-family: Arial;
+            margin: 40px;
+        }
+
+        h1 {
+            margin-bottom: 30px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 600px;
+        }
+
+        th, td {
+            border: 1px solid black;
+            padding: 10px;
+            text-align: center;
+        }
+
+        th {
+            background: #eeeeee;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>IoT Telemetry Dashboard</h1>
+
+    <table>
+        <tr>
+            <th>Sensor</th>
+            <th>Value</th>
+            <th>Unit</th>
+            <th>Timestamp</th>
+        </tr>
+
+        <tr>
+            <td>Temperature</td>
+            <td id="temp-value">--</td>
+            <td>°C</td>
+            <td id="temp-time">--</td>
+        </tr>
+
+        <tr>
+            <td>Humidity</td>
+            <td id="humidity-value">--</td>
+            <td>%</td>
+            <td id="humidity-time">--</td>
+        </tr>
+
+        <tr>
+            <td>Soil Moisture</td>
+            <td id="soil-value">--</td>
+            <td>%</td>
+            <td id="soil-time">--</td>
+        </tr>
+    </table>
+
+    <script>
+
+        async function fetchSensor(sensorId, valueId, timeId) {
+
+            try {
+
+                const response = await fetch(
+                    `http://localhost:8080/sensors/${sensorId}/readings`
+                );
+
+                const data = await response.json();
+
+                if (data.readings.length > 0) {
+
+                    const latest =
+                        data.readings[data.readings.length - 1];
+
+                    document.getElementById(valueId).innerText =
+                        latest.value;
+
+                    const date =
+                        new Date(parseInt(latest.timestamp) * 1000);
+
+                    document.getElementById(timeId).innerText =
+                        date.toLocaleTimeString();
+                }
+
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        async function updateDashboard() {
+
+            await fetchSensor(
+                "temp-1",
+                "temp-value",
+                "temp-time"
+            );
+
+            await fetchSensor(
+                "humid-1",
+                "humidity-value",
+                "humidity-time"
+            );
+
+            await fetchSensor(
+                "soil-1",
+                "soil-value",
+                "soil-time"
+            );
+        }
+
+        updateDashboard();
+
+        setInterval(updateDashboard, 2000);
+
+    </script>
+
+</body>
+</html>
